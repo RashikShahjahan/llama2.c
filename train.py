@@ -55,11 +55,16 @@ n_layers = 6
 n_heads = 6
 n_kv_heads = 6
 multiple_of = 32
+hidden_dim = 4 * dim
+hidden_dim = int(2 * hidden_dim / 3)
+hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
+head_dim = dim // n_heads
+norm_eps = 1e-5 
 dropout = 0.0
 # adamw optimizer
 gradient_accumulation_steps = 4  # used to simulate larger batch sizes
 learning_rate = 5e-4  # max learning rate
-max_iters = 100000  # total number of training iterations
+max_iters = 25000  # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
@@ -68,8 +73,8 @@ grad_clip = 1.0  # clip gradients at this value, or disable if == 0.0
 decay_lr = True  # whether to decay the learning rate
 warmup_iters = 1000  # how many steps to warm up for
 # system
-device = "cuda"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
-dtype = "bfloat16"  # float32|bfloat16|float16
+device = "cpu"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+dtype = "float16"  # float32|bfloat16|float16
 compile = True  # use PyTorch 2.0 to compile the model to be faster
 # -----------------------------------------------------------------------------
 config_keys = [
@@ -150,10 +155,10 @@ model_args = dict(
     n_heads=n_heads,
     n_kv_heads=n_kv_heads,
     vocab_size=vocab_size,
-    multiple_of=multiple_of,
-    max_seq_len=max_seq_len,
-    dropout=dropout,
-)  # start with model_args from command line
+    norm_eps=norm_eps,
+    head_dim=head_dim,
+    hidden_dim=hidden_dim,
+    )  # start with model_args from command line
 if init_from == "scratch":
     # init a new model from scratch
     print("Initializing a new model from scratch")
