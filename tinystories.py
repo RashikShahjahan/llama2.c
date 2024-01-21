@@ -7,6 +7,7 @@ import glob
 import json
 import os
 import random
+from typing import List
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 
@@ -125,6 +126,7 @@ def train_vocab(vocab_size):
 
 def process_shard(args, vocab_size):
     shard_id, shard = args
+    print(shard_id, shard)
     tokenizer_model = get_tokenizer_model_path(vocab_size)
     enc = Tokenizer(tokenizer_model)
     with open(shard, "r") as f:
@@ -133,7 +135,7 @@ def process_shard(args, vocab_size):
     for example in tqdm(data, position=shard_id):
         text = example["story"]
         text = text.strip()  # get rid of leading/trailing whitespace
-        tokens = enc.encode(text, bos=True, eos=False)  # encode the text, use BOS
+        tokens = enc.encode(text)  # encode the text, use BOS
         all_tokens.extend(tokens)
     # convert to uint16 nparray
     all_tokens = np.array(all_tokens, dtype=np.uint16)
@@ -159,6 +161,7 @@ def pretokenize(vocab_size):
     # iterate the shards and tokenize all of them one by one
     data_dir = os.path.join(DATA_CACHE_DIR, "TinyStories_all_data")
     shard_filenames = sorted(glob.glob(os.path.join(data_dir, "*.json")))
+    print(f"Found {len(shard_filenames)} shards in {data_dir}")
     if vocab_size > 0:
         # .bin files will be saved into tok{N} directory, create it once here
         bin_dir = os.path.join(DATA_CACHE_DIR, f"tok{vocab_size}")
@@ -166,7 +169,7 @@ def pretokenize(vocab_size):
 
     # process all the shards in a process pool
     fun = partial(process_shard, vocab_size=vocab_size)
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(max_workers=4) as executor:
         executor.map(fun, enumerate(shard_filenames))
     print("Done.")
 
@@ -191,14 +194,9 @@ class PretokDataset(torch.utils.data.IterableDataset):
         seed = 42 + worker_id + 1337 * rank
         rng = random.Random(seed)
         print(f"Created a PretokDataset with rng seed {seed}")
-        if self.vocab_source == "llama2":
-            # the .bin files are right along the .json files
-            bin_dir = os.path.join(DATA_CACHE_DIR, "TinyStories_all_data")
-            shard_filenames = sorted(glob.glob(os.path.join(bin_dir, "*.bin")))
-        elif self.vocab_source == "custom":
-            # the .bin files are in tok{N} directory
-            bin_dir = os.path.join(DATA_CACHE_DIR, f"tok{self.vocab_size}")
-            shard_filenames = sorted(glob.glob(os.path.join(bin_dir, "*.bin")))
+        # the .bin files are in tok{N} directory
+        bin_dir = os.path.join(DATA_CACHE_DIR, f"tok{self.vocab_size}")
+        shard_filenames = sorted(glob.glob(os.path.join(bin_dir, "*.bin")))
         # train/test split. let's use only shard 0 for test split, rest train
         shard_filenames = shard_filenames[1:] if self.split == "train" else shard_filenames[:1]
         assert len(shard_filenames)>0, f"No bin files found in {bin_dir}"
@@ -218,8 +216,7 @@ class PretokDataset(torch.utils.data.IterableDataset):
                     # calling .astype will copy the data into a new numpy array, now in RAM
                     chunk = torch.from_numpy((m[start:end]).astype(np.int64))
                     x = chunk[:-1]
-                    y = chunk[1:]
-                    yield x, y
+                    yield x
 
 # -----------------------------------------------------------------------------
 # public interface functions
@@ -243,10 +240,16 @@ class Task:
         dl = torch.utils.data.DataLoader(
             ds, batch_size=batch_size, pin_memory=True, num_workers=num_workers
         )
-        for x, y in dl:
+        seq_lengths = []
+        for x in dl:
             x = x.to(device, non_blocking=True)
-            y = y.to(device, non_blocking=True)
-            yield x, y
+
+            # Calculate sequence lengths for each example in the batch
+            seq_lengths = [256]*len(x)
+            # flatten the batch
+            x = x.flatten(0, 1)
+            yield x, seq_lengths
+
 
 # -----------------------------------------------------------------------------
 # CLI for constructing the dataset

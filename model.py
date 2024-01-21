@@ -6,12 +6,11 @@ from typing import List, Optional
 import torch
 from torch import nn
 from simple_parsing.helpers import Serializable
-
+import inspect
 from rope import precompute_freqs_cis, apply_rotary_emb
 from cache import CacheView, RotatingBufferCache
 
 from xformers.ops.fmha import memory_efficient_attention
-
 
 @dataclass
 class ModelArgs(Serializable):
@@ -24,7 +23,7 @@ class ModelArgs(Serializable):
     norm_eps: float
     vocab_size: int
 
-    max_batch_size: int = 0
+    max_batch_size: int = 4096
 
     # For rotary embeddings. If not set, will be infered from sliding window.
     rope_theta: Optional[float] = None
@@ -148,14 +147,7 @@ class TransformerBlock(nn.Module):
         self.args = args
 
         self.feed_forward: nn.Module
-        if args.moe is not None:
-            self.feed_forward = MoeLayer(
-                experts=[FeedForward(args=args) for _ in range(args.moe.num_experts)],
-                gate=nn.Linear(args.dim, args.moe.num_experts, bias=False),
-                moe_args=args.moe,
-            )
-        else:
-            self.feed_forward = FeedForward(args=args)
+        self.feed_forward = FeedForward(args=args)
 
     def forward(
         self, x: torch.Tensor, freqs_cis: torch.Tensor, cache: Optional[CacheView]
@@ -227,6 +219,49 @@ class Transformer(nn.Module):
                 device=self.device
             )
         return self._precomputed_freqs_cis
+    
+    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+        # start with all of the candidate parameters
+        param_dict = {pn: p for pn, p in self.named_parameters()}
+        # filter out those that do not require grad
+        param_dict = {pn: p for pn, p in param_dict.items() if p.requires_grad}
+        # create optim groups. Any parameters that is 2D will be weight decayed, otherwise no.
+        # i.e. all weight tensors in matmuls + embeddings decay, all biases and layernorms don't.
+        decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+        nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+                {'params': decay_params, 'weight_decay': weight_decay},
+                {'params': nodecay_params, 'weight_decay': 0.0}
+            ]
+        num_decay_params = sum(p.numel() for p in decay_params)
+        num_nodecay_params = sum(p.numel() for p in nodecay_params)
+        print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
+        print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+        # Create AdamW optimizer and use the fused version if it is available
+        fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
+        use_fused = fused_available and device_type == 'cuda'
+        extra_args = dict(fused=True) if use_fused else dict()
+        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
+        print(f"using fused AdamW: {use_fused}")
+
+        return optimizer
+
+
+    def estimate_mfu(self, fwdbwd_per_iter, dt):
+        """ estimate model flops utilization (MFU) in units of A100 bfloat16 peak FLOPS """
+        # first estimate the number of flops we do per iteration.
+        # see PaLM paper Appendix B as ref: https://arxiv.org/abs/2204.02311
+        N = sum(p.numel() for p in self.parameters())
+        cfg = self.params
+        L, H, Q, T = cfg.n_layers, cfg.n_heads, cfg.dim//cfg.n_heads, cfg.max_seq_len
+        flops_per_token = 6*N + 12*L*H*Q*T
+        flops_per_fwdbwd = flops_per_token * T
+        flops_per_iter = flops_per_fwdbwd * fwdbwd_per_iter
+        # express our flops throughput as ratio of A100 bfloat16 peak flops
+        flops_achieved = flops_per_iter * (1.0/dt) # per second
+        flops_promised = 312e12 # A100 GPU bfloat16 peak flops is 312 TFLOPS
+        mfu = flops_achieved / flops_promised
+        return mfu
 
     def forward_partial(
         self,
@@ -337,3 +372,4 @@ class Transformer(nn.Module):
                 raise ValueError(f"Unexpected key {k}")
         assert set(state_dict.keys()) == skipped.union(set(state_to_load.keys()))
         super().load_state_dict(state_to_load, *args, **kwargs)
+
