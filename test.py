@@ -53,6 +53,6 @@ model.eval()  # Set the model to evaluation mode
 with torch.no_grad():
     output = model(input_ids, seqlens)
 
-output_text = tokenizer.decode(output[0].argmax(dim=-1).tolist())
+output_text = tokenizer.decode(output.argmax(dim=-1).tolist())
 # Process the output as needed
 print(output_text)
