@@ -31,6 +31,7 @@ from tinystories import Task
 # -----------------------------------------------------------------------------
 # I/O
 out_dir = "out"
+init_from = "resume"  # scratch|resume
 eval_interval = 2000
 log_interval = 1
 eval_iters = 100
@@ -41,15 +42,15 @@ wandb_log = False  # disabled by default
 wandb_project = "llamac"
 wandb_run_name = "run" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 # data
-batch_size = 128  # if gradient_accumulation_steps > 1, this is the micro-batch size
+batch_size = 512  # if gradient_accumulation_steps > 1, this is the micro-batch size
 max_seq_len = 256
 vocab_source = "custom" # llama2|custom; use Lllama 2 vocab from Meta, or custom trained
 vocab_size = 4096 # the Llama 2 tokenizer has 32K tokens
 # model
-dim = 288
-n_layers = 6
-n_heads = 6
-n_kv_heads = 6
+dim = 768
+n_layers = 12
+n_heads = 12
+n_kv_heads = 12
 multiple_of = 32
 hidden_dim = 4 * dim
 hidden_dim = int(2 * hidden_dim / 3)
@@ -60,7 +61,7 @@ dropout = 0.0
 # adamw optimizer
 gradient_accumulation_steps = 4  # used to simulate larger batch sizes
 learning_rate = 5e-4  # max learning rate
-max_iters = 25000  # total number of training iterations
+max_iters = 10000  # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
@@ -131,10 +132,22 @@ model_args = dict(
     head_dim=head_dim,
     hidden_dim=hidden_dim,
     )  # start with model_args from command line
-# init a new model from scratch
-print("Initializing a new model from scratch")
-gptconf = ModelArgs(**model_args)
-model = Transformer(gptconf)
+if init_from == "scratch":
+    # init a new model from scratch
+    print("Initializing a new model from scratch")
+    gptconf = ModelArgs(**model_args)
+    model = Transformer(gptconf)
+elif init_from == "resume":
+    print(f"Resuming training from {out_dir}")
+    # resume training from a checkpoint.
+    ckpt_path = os.path.join(out_dir, "ckpt.pt")
+    checkpoint = torch.load(ckpt_path, map_location=device)
+    checkpoint_model_args = checkpoint["model_args"]
+    # force these config attributes to be equal otherwise we can't even resume training
+    # the rest of the attributes (e.g. dropout) can stay as desired from command line
+    for k in ["dim", "n_layers", "n_heads", "n_kv_heads", "vocab_size", "norm_eps", "head_dim", "hidden_dim"]:
+        model_args[k] = checkpoint_model_args[k]
+    # create the model
 model.to(device)
 
 # initialize a GradScaler. If enabled=False scaler is a no-op
