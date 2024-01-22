@@ -59,7 +59,7 @@ head_dim = dim // n_heads
 norm_eps = 1e-5 
 dropout = 0.0
 # adamw optimizer
-gradient_accumulation_steps = 4  # used to simulate larger batch sizes
+gradient_accumulation_steps = 1  # used to simulate larger batch sizes
 learning_rate = 5e-4  # max learning rate
 max_iters = 10000  # total number of training iterations
 weight_decay = 1e-1
