@@ -10,7 +10,6 @@ import inspect
 from rope import precompute_freqs_cis, apply_rotary_emb
 from cache import CacheView, RotatingBufferCache
 
-from xformers.ops.fmha import memory_efficient_attention
 
 @dataclass
 class ModelArgs(Serializable):
@@ -76,7 +75,6 @@ class Attention(nn.Module):
         cache: Optional[CacheView],
     ) -> torch.Tensor:
         seqlen_sum, _ = x.shape
-
         xq, xk, xv = self.wq(x), self.wk(x), self.wv(x)
         xq = xq.view(seqlen_sum, self.n_heads, self.head_dim)
         xk = xk.view(seqlen_sum, self.n_kv_heads, self.head_dim)
@@ -101,11 +99,13 @@ class Attention(nn.Module):
         # Repeat keys and values to match number of query heads
         key, val = repeat_kv(key, val, self.repeats, dim=1)
 
-        # xformers requires (B=1, S, H, D)
-        xq, key, val = xq[None, ...], key[None, ...], val[None, ...]
-        output = memory_efficient_attention(
-            xq, key, val, None if cache is None else cache.mask
+        xq = xq.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
+        key = key.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
+        val = val.transpose(1, 2)  # (bs, n_local_heads, seqlen, head_dim)
+        output = torch.nn.functional.scaled_dot_product_attention(
+            xq, key, val, None if cache is None else cache.mask, dropout_p=0.0, is_causal=True
         )
+
 
         return self.wo(output.view(seqlen_sum, self.n_heads * self.head_dim))
 

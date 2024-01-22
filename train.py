@@ -25,7 +25,7 @@ from functools import partial
 
 import torch
 from model import Transformer, ModelArgs
-
+import torch.nn.functional as F
 from tinystories import Task
 from export import model_export
 
@@ -70,7 +70,7 @@ grad_clip = 1.0  # clip gradients at this value, or disable if == 0.0
 decay_lr = True  # whether to decay the learning rate
 warmup_iters = 1000  # how many steps to warm up for
 # system
-device = "cuda"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
+device = "cpu"  # examples: 'cpu', 'cuda', 'cuda:0', 'cuda:1' etc., or try 'mps' on macbooks
 dtype = "float16"  # float32|bfloat16|float16
 compile = True  # use PyTorch 2.0 to compile the model to be faster
 # -----------------------------------------------------------------------------
@@ -162,10 +162,10 @@ def estimate_loss():
         batch_iter = iter_batches(split=split)
         losses = torch.zeros(eval_iters)  # keep on CPU
         for k in range(eval_iters):
-            X, seq = next(batch_iter)
+            X, Y, seq = next(batch_iter)
             with ctx:
                 logits = model(X, seq)
-                loss = model.last_loss
+                loss = F.cross_entropy(logits.view(-1, logits.size(-1)), Y.view(-1), ignore_index=-1)
             losses[k] = loss.item()
         out[split] = losses.mean()
     model.train()
@@ -192,7 +192,7 @@ if wandb_log:
 
 # training loop
 train_batch_iter = iter_batches(split="train")
-X, seq = next(train_batch_iter)  # fetch the very first batch
+X,Y, seq = next(train_batch_iter)  # fetch the very first batch
 t0 = time.time()
 local_iter_num = 0  # number of iterations in the lifetime of this process
 running_mfu = -1.0
@@ -245,7 +245,7 @@ while True:
             loss = model.last_loss
             loss = loss / gradient_accumulation_steps
         # immediately async prefetch next batch while model is doing the forward pass on the GPU
-        X, seq = next(train_batch_iter)
+        X,Y, seq = next(train_batch_iter)
         # backward pass, with gradient scaling if training in fp16
         scaler.scale(loss).backward()
     # clip the gradient

@@ -216,7 +216,8 @@ class PretokDataset(torch.utils.data.IterableDataset):
                     # calling .astype will copy the data into a new numpy array, now in RAM
                     chunk = torch.from_numpy((m[start:end]).astype(np.int64))
                     x = chunk[:-1]
-                    yield x
+                    y = chunk[1:]
+                    yield x, y
 
 # -----------------------------------------------------------------------------
 # public interface functions
@@ -241,14 +242,16 @@ class Task:
             ds, batch_size=batch_size, pin_memory=True, num_workers=num_workers
         )
         seq_lengths = []
-        for x in dl:
+        for x,y in dl:
             x = x.to(device, non_blocking=True)
-
+            y = y.to(device, non_blocking=True)
             # Calculate sequence lengths for each example in the batch
             seq_lengths = [256]*len(x)
             # flatten the batch
             x = x.flatten(0, 1)
-            yield x, seq_lengths
+            y = y.flatten(0, 1)
+
+            yield x,y,seq_lengths
 
 
 # -----------------------------------------------------------------------------
