@@ -34,7 +34,13 @@ model = Transformer(gptconf)
 model.to('cuda')
 # Load the checkpoint
 checkpoint = torch.load("out/ckpt.pt", map_location=torch.device('cuda'))
-model.load_state_dict(checkpoint['model'])
+state_dict = checkpoint["model"]
+
+unwanted_prefix = "_orig_mod."
+for k, v in list(state_dict.items()):
+    if k.startswith(unwanted_prefix):
+        state_dict[k[len(unwanted_prefix) :]] = state_dict.pop(k)
+model.load_state_dict(state_dict)
 
 # Prepare the input data
 # This is a placeholder, replace with your actual data preparation
