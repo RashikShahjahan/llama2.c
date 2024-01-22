@@ -45,7 +45,7 @@ model.load_state_dict(state_dict)
 # Prepare the input data
 # This is a placeholder, replace with your actual data preparation
 prompt = "Princess Eliya"
-input_ids = torch.tensor([tokenizer.encode(prompt)]).flatten()
+input_ids = torch.tensor([tokenizer.encode(prompt)]).flatten().to('cuda')
 seqlens = [len(input_ids)]
 
 # Run inference
