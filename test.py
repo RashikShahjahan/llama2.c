@@ -34,7 +34,7 @@ model = Transformer(gptconf)
 model.to('cuda')
 # Load the checkpoint
 checkpoint = torch.load("out/ckpt.pt", map_location=torch.device('cuda'))
-model.load_state_dict(checkpoint['model_state_dict'])
+model.load_state_dict(checkpoint['model'])
 
 # Prepare the input data
 # This is a placeholder, replace with your actual data preparation
