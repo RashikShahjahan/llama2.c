@@ -195,7 +195,6 @@ train_batch_iter = iter_batches(split="train")
 X,Y, seq = next(train_batch_iter)  # fetch the very first batch
 t0 = time.time()
 local_iter_num = 0  # number of iterations in the lifetime of this process
-running_mfu = -1.0
 while True:
     # determine and set the learning rate for this iteration
     lr = get_lr(iter_num) if decay_lr else learning_rate
@@ -215,7 +214,6 @@ while True:
                         "loss/train": losses["train"],
                         "loss/val": losses["val"],
                         "lr": lr,
-                        "mfu": running_mfu * 100,  # convert to percentage
                     }, step = iter_num
                 )
             except Exception as e:
@@ -265,11 +263,8 @@ while True:
     if iter_num % log_interval == 0:
         # get loss as float, scale up due to the divide above. note: this is a CPU-GPU sync point
         lossf = loss.item() * gradient_accumulation_steps
-        if local_iter_num >= 5:  # let the training loop settle a bit
-            mfu = model.estimate_mfu(batch_size * gradient_accumulation_steps, dt)
-            running_mfu = mfu if running_mfu == -1.0 else 0.9 * running_mfu + 0.1 * mfu
         print(
-            f"{iter_num} | loss {lossf:.4f} | lr {lr:e} | {dt*1000:.2f}ms | mfu {running_mfu*100:.2f}%"
+            f"{iter_num} | loss {lossf:.4f} | lr {lr:e} | {dt*1000:.2f}ms"
         )
     iter_num += 1
     local_iter_num += 1
