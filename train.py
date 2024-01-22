@@ -27,7 +27,6 @@ import torch
 from model import Transformer, ModelArgs
 import torch.nn.functional as F
 from tinystories import Task
-from export import model_export
 
 # -----------------------------------------------------------------------------
 # I/O
@@ -231,7 +230,6 @@ while True:
                 }
                 print(f"saving checkpoint to {out_dir}")
                 torch.save(checkpoint, os.path.join(out_dir, "ckpt.pt"))
-                model_export(model, os.path.join(out_dir, "model.bin"), version=0)
     if iter_num == 0 and eval_only:
         break
 
