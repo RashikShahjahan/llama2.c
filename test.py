@@ -55,4 +55,4 @@ with torch.no_grad():
 
 output_text = tokenizer.decode(output[0].argmax(dim=-1).tolist())
 # Process the output as needed
-print(output)
+print(output_text)
