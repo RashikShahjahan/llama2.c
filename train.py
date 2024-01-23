@@ -16,6 +16,7 @@ $ torchrun --nproc_per_node=8 --nnodes=2 --node_rank=1 --master_addr=123.456.123
 (If your cluster does not have Infiniband interconnect prepend NCCL_IB_DISABLE=1)
 """
 
+import json
 import math
 import os
 import time
@@ -229,6 +230,9 @@ while True:
     if iter_num % eval_interval == 0:
         losses = estimate_loss()
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
+        # write to json file
+        with open(os.path.join(out_dir, "losses.json"), "a") as f:
+            json.dump({"iter": iter_num, "losses": losses}, f)
         if wandb_log:
             try:
                 wandb.log(
