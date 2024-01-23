@@ -62,7 +62,7 @@ dropout = 0.0
 # adamw optimizer
 gradient_accumulation_steps = 1  # used to simulate larger batch sizes
 learning_rate = 5e-4  # max learning rate
-max_iters = 10000  # total number of training iterations
+max_iters = 50000  # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
@@ -232,7 +232,7 @@ while True:
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         # write to json file
         with open(os.path.join(out_dir, "losses.json"), "a") as f:
-            json.dump({"iter": iter_num, "losses": losses}, f)
+            json.dump({"iter": iter_num, "train_loss": losses["train"], "val_loss":losses["val"] }, f)
         if wandb_log:
             try:
                 wandb.log(
