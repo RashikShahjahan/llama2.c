@@ -232,7 +232,7 @@ while True:
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         # write to json file
         with open(os.path.join(out_dir, "losses.json"), "a") as f:
-            json.dump({"iter": iter_num, "train_loss": losses["train"], "val_loss":losses["val"] }, f)
+            json.dump({"train_loss": losses["train"], "val_loss":losses["val"] }, f)
         if wandb_log:
             try:
                 wandb.log(
