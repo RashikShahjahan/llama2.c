@@ -231,8 +231,8 @@ while True:
         losses = estimate_loss()
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         # write to json file
-        with open(os.path.join(out_dir, "losses.json"), "a") as f:
-            json.dump({"train_loss": losses["train"], "val_loss":losses["val"] }, f)
+        with open(os.path.join(out_dir, "losses.txt"), "a") as f:
+            f.write(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         if wandb_log:
             try:
                 wandb.log(
