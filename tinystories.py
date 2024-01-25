@@ -246,7 +246,7 @@ class Task:
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
             # Calculate sequence lengths for each example in the batch
-            seq_lengths = [256]*len(x)
+            seq_lengths = (x != 1).sum(dim=1)
             # flatten the batch
             x = x.flatten(0, 1)
             y = y.flatten(0, 1)
