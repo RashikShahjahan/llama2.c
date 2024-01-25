@@ -234,24 +234,23 @@ def get_tokenizer_model_path(vocab_size):
         return os.path.join(DATA_CACHE_DIR, f"tok{vocab_size}.model")
 
 class Task:
-
     @staticmethod
     def iter_batches(batch_size, device, num_workers=0, **dataset_kwargs):
         ds = PretokDataset(**dataset_kwargs)
-        dl = torch.utils.data.DataLoader(
-            ds, batch_size=batch_size, pin_memory=True, num_workers=num_workers
-        )
-        seq_lengths = []
-        for x,y in dl:
-            x = x.to(device, non_blocking=True)
-            y = y.to(device, non_blocking=True)
-            # Calculate sequence lengths for each example in the batch
-            seq_lengths = (x != 1).sum(dim=1)
-            # flatten the batch
-            x = x.flatten(0, 1)
-            y = y.flatten(0, 1)
+        dl = torch.utils.data.DataLoader(ds, batch_size=batch_size, pin_memory=True, num_workers=num_workers)
 
-            yield x,y,seq_lengths
+        for batch in dl:
+            # Assuming batch is a tuple of (x, y) where x and y are lists of sequences
+            x, y = batch
+            # Pad sequences in x and y to the max length in each batch
+            x_padded = torch.nn.utils.rnn.pad_sequence(x, batch_first=True, padding_value=0).to(device, non_blocking=True).flatten(0, 1)
+            y_padded = torch.nn.utils.rnn.pad_sequence(y, batch_first=True, padding_value=0).to(device, non_blocking=True).flatten(0, 1)
+            
+            # Calculate sequence lengths for attention masking
+            seq_lengths = [len(seq) for seq in x]
+            
+            yield x_padded, y_padded, seq_lengths
+
 
 
 # -----------------------------------------------------------------------------

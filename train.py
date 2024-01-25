@@ -32,8 +32,8 @@ from tinystories import Task
 # -----------------------------------------------------------------------------
 # I/O
 out_dir = "out"
-init_from = "resume"  # scratch|resume
-eval_interval = 2000
+init_from = "scratch"  # scratch|resume
+eval_interval = 20
 log_interval = 1
 eval_iters = 100
 eval_only = False  # if True, script exits right after the first eval
@@ -48,10 +48,10 @@ max_seq_len = 256
 vocab_source = "custom" # llama2|custom; use Lllama 2 vocab from Meta, or custom trained
 vocab_size = 4096 # the Llama 2 tokenizer has 32K tokens
 # model
-dim = 768
-n_layers = 12
-n_heads = 12
-n_kv_heads = 12
+dim = 64
+n_layers = 5
+n_heads = 8
+n_kv_heads = 4
 multiple_of = 32
 hidden_dim = 4 * dim
 hidden_dim = int(2 * hidden_dim / 3)
@@ -62,7 +62,7 @@ dropout = 0.0
 # adamw optimizer
 gradient_accumulation_steps = 1  # used to simulate larger batch sizes
 learning_rate = 5e-4  # max learning rate
-max_iters = 50000  # total number of training iterations
+max_iters = 21  # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
