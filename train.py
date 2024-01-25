@@ -33,15 +33,11 @@ from tinystories import Task
 # I/O
 out_dir = "out"
 init_from = "scratch"  # scratch|resume
-eval_interval = 20
+eval_interval = 2000
 log_interval = 1
 eval_iters = 100
 eval_only = False  # if True, script exits right after the first eval
 always_save_checkpoint = False  # if True, always save a checkpoint after each eval
-# wandb logging
-wandb_log = False  # disabled by default
-wandb_project = "llamac"
-wandb_run_name = "run" + datetime.now().strftime("%Y_%m_%d_%H_%M_%S")
 # data
 batch_size = 512  # if gradient_accumulation_steps > 1, this is the micro-batch size
 max_seq_len = 256
@@ -52,7 +48,7 @@ dim = 64
 n_layers = 5
 n_heads = 8
 n_kv_heads = 4
-multiple_of = 32
+multiple_of = 8  # multiple of this number of dimensions for all linear layers
 hidden_dim = 4 * dim
 hidden_dim = int(2 * hidden_dim / 3)
 hidden_dim = multiple_of * ((hidden_dim + multiple_of - 1) // multiple_of)
@@ -62,7 +58,7 @@ dropout = 0.0
 # adamw optimizer
 gradient_accumulation_steps = 1  # used to simulate larger batch sizes
 learning_rate = 5e-4  # max learning rate
-max_iters = 21  # total number of training iterations
+max_iters = 100000  # total number of training iterations
 weight_decay = 1e-1
 beta1 = 0.9
 beta2 = 0.95
@@ -210,10 +206,6 @@ def get_lr(it):
     coeff = 0.5 * (1.0 + math.cos(math.pi * decay_ratio))  # coeff ranges 0..1
     return min_lr + coeff * (learning_rate - min_lr)
 
-# logging
-if wandb_log:
-    import wandb
-    wandb.init(project=wandb_project, name=wandb_run_name, config=config)
 
 # training loop
 train_batch_iter = iter_batches(split="train")
@@ -233,19 +225,7 @@ while True:
         # write to json file
         with open(os.path.join(out_dir, "losses.txt"), "a") as f:
             f.write(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-        if wandb_log:
-            try:
-                wandb.log(
-                    {
-                        "iter": iter_num,
-                        "tokens": iter_num * tokens_per_iter,
-                        "loss/train": losses["train"],
-                        "loss/val": losses["val"],
-                        "lr": lr,
-                    }, step = iter_num
-                )
-            except Exception as e:
-                print(f"logging to wandb failed: {e}")
+
         if losses["val"] < best_val_loss or always_save_checkpoint:
             best_val_loss = losses["val"]
             if iter_num > 0:

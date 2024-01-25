@@ -243,8 +243,8 @@ class Task:
             # Assuming batch is a tuple of (x, y) where x and y are lists of sequences
             x, y = batch
             # Pad sequences in x and y to the max length in each batch
-            x_padded = torch.nn.utils.rnn.pad_sequence(x, batch_first=True, padding_value=0).to(device, non_blocking=True).flatten(0, 1)
-            y_padded = torch.nn.utils.rnn.pad_sequence(y, batch_first=True, padding_value=0).to(device, non_blocking=True).flatten(0, 1)
+            x_padded = torch.nn.utils.rnn.pad_sequence(x, batch_first=True, padding_value=-1).to(device, non_blocking=True).flatten(0, 1)
+            y_padded = torch.nn.utils.rnn.pad_sequence(y, batch_first=True, padding_value=-1).to(device, non_blocking=True).flatten(0, 1)
             
             # Calculate sequence lengths for attention masking
             seq_lengths = [len(seq) for seq in x]
