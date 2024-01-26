@@ -135,7 +135,7 @@ def process_shard(args, vocab_size):
     for example in tqdm(data, position=shard_id):
         text = example["story"]
         text = text.strip()  # get rid of leading/trailing whitespace
-        tokens = enc.encode(text)  # encode the text, use BOS
+        tokens = enc.encode(text, bos=True)  # encode the text, use BOS
         all_tokens.extend(tokens)
     # convert to uint16 nparray
     all_tokens = np.array(all_tokens, dtype=np.uint16)
